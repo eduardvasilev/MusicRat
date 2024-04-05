@@ -1,4 +1,4 @@
-using SoundRat.Components;
+using MusicRat.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
