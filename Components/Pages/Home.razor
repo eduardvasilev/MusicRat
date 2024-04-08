@@ -28,7 +28,7 @@
     <div id="progress-bar" cursor: pointer;>
         <div id="progress"></div>
     </div>
-    <button id="playBtn" @onclick="PlayOrPause">@(_isAudioPlayed == null ? "▶" : _isAudioPlayed is true ? "⏸︎" : "▶")</button>
+    <button id="playBtn" @onclick="PlayOrPause">@(_isAudioPlayed == null ? "▶" : _isAudioPlayed is true ? "⏸" : "▶")</button>
 </div>
 <script>
         window.PlayAudioFileStream = async (url) => {
@@ -69,6 +69,10 @@
             sound.onended = function () {
                 document.body.removeChild(sound);
                 URL.revokeObjectURL(url);
+                window.DotNet.invokeMethodAsync("MusicRat", "GetStreamUrl").then(newTrackUrl => {
+                    PlayAudioFileStream(newTrackUrl);
+                });
+
             };
         }
 
@@ -95,7 +99,8 @@
     private SearchClient _searchClient;
     private string search;
     private bool? _isAudioPlayed;
-    List<Track> _tracks;
+    static Track? currnetTrack;
+    static List<Track> _tracks;
     [Inject] private IJSRuntime _js { get; set; }
     protected override async Task OnInitializedAsync()
     {
@@ -108,6 +113,7 @@
     {
         _isAudioPlayed = true;
         Track track = await _trackClient.GetTrackInfoAsync(url, CancellationToken.None);
+        currnetTrack = track;
         await _js.InvokeVoidAsync("PlayAudioFileStream", track.Streams.FirstOrDefault()?.Url);
 
     }
@@ -121,7 +127,22 @@
     private async Task Search()
     {
         SearchingResult<Track> searchTracksAsync = await _searchClient.SearchTracksAsync(new QueryRequest { Query = search }, CancellationToken.None);
-        _tracks = searchTracksAsync.Result.ToList();
+        _tracks.AddRange(searchTracksAsync.Result.ToList());
+    }
+
+    [JSInvokable]
+    public static async Task<string?> GetStreamUrl()
+    {
+        string trackUrl = "";
+        Track prevTrack = _tracks.FirstOrDefault(x => x.Url == currnetTrack.Url);
+        int indexOf = _tracks.IndexOf(prevTrack);
+        if (indexOf >= 0)
+        {
+            var track = _tracks[indexOf + 1];
+            currnetTrack = track;
+            trackUrl = track.Url;
+        }
+        return (await new TrackClient().GetTrackInfoAsync(trackUrl, CancellationToken.None)).Streams.FirstOrDefault()?.Url;
     }
 }
 
